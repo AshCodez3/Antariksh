@@ -8,6 +8,10 @@ export default function Team() {
   const [selectedMember, setSelectedMember] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Accordion drawer toggle states
+  const [isMentorsOpen, setIsMentorsOpen] = useState(true);
+  const [isCoreOpen, setIsCoreOpen] = useState(true);
+
   // Pure Dragging Engine Ref
   const marqueeTrackRef = useRef(null);
   const isDraggingRef = useRef(false);
@@ -60,7 +64,7 @@ export default function Team() {
       }
     }
     fetchActiveCrew();
-  }, [supabase]);
+  }, []);
 
   const FALLBACK_AVATAR =
     "https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=1000&q=80";
@@ -86,52 +90,27 @@ export default function Team() {
   const volunteers = members.filter(isVolunteer);
   const coreMembers = members.filter((m) => !isVolunteer(m));
 
-  const mentors = coreMembers.filter((m) => {
-    const role = (m.role || "").toUpperCase();
-    const dept = (m.department || "").toLowerCase();
-    const desig = (m.designation || "").toLowerCase();
-    return (
-      role === "MENTOR" ||
-      dept.includes("faculty") ||
-      desig.includes("mentor") ||
-      desig.includes("advisor")
-    );
-  });
+  // 1. Mentors Group (Exact 3 Cards)
+  const mentors = coreMembers
+    .filter((m) => {
+      const role = (m.role || "").toUpperCase();
+      const dept = (m.department || "").toLowerCase();
+      const desig = (m.designation || "").toLowerCase();
+      return (
+        role === "MENTOR" ||
+        dept.includes("faculty") ||
+        desig.includes("mentor") ||
+        desig.includes("advisor")
+      );
+    })
+    .slice(0, 3);
 
-  const president = coreMembers.find((m) => {
-    const desig = (m.designation || "").toLowerCase();
-    const role = (m.role || "").toUpperCase();
-    return (
-      m.academicYear === "TY" &&
-      (desig.includes("president") ||
-        desig.includes("lead") ||
-        role === "ADMIN") &&
-      !mentors.some((mentor) => mentor.id === m.id)
-    );
-  });
-
-  const leadership = [
-    ...mentors.slice(0, 3),
-    ...(president ? [president] : []),
-  ];
-
-  const tyCrew = coreMembers.filter(
-    (m) =>
-      m.academicYear === "TY" &&
-      (!president || m.id !== president.id) &&
-      !mentors.some((mentor) => mentor.id === m.id),
-  );
-
-  const syCrew = coreMembers.filter(
-    (m) =>
-      m.academicYear === "SY" && !mentors.some((mentor) => mentor.id === m.id),
-  );
-
-  // All core members in intentional hierarchy
-  const displayList = [...leadership, ...tyCrew, ...syCrew];
+  // 2. Core Team Group (Exact 9 Cards)
+  const coreTeamList = coreMembers
+    .filter((m) => !mentors.some((mentor) => mentor.id === m.id))
+    .slice(0, 9);
 
   // Single-Volunteer Support:
-  // If only 1-4 volunteers exist, repeat to fill the screen width (minimum 8 cards per set)
   const baseVolunteersSet = (() => {
     if (volunteers.length === 0) return [];
     let set = [...volunteers];
@@ -141,13 +120,10 @@ export default function Team() {
     return set;
   })();
 
-  // Exactly Set A + Set B (scrollWidth / 2 is mathematically exact to 1 Set)
   const marqueeItems = [...baseVolunteersSet, ...baseVolunteersSet];
-
   const rotations = [-4, 3, -2, 5, -3, 4, -5, 2];
   const verticalOffsets = [14, 0, 8, -4, 12, 2, -6, 10];
 
-  // Continuous JS loop: Exact 50% Euclidean wrap
   useEffect(() => {
     if (marqueeItems.length === 0) return;
 
@@ -159,7 +135,6 @@ export default function Team() {
       lastTimeRef.current = time;
 
       if (marqueeTrackRef.current) {
-        // One complete set width = half of the duplicated track
         const setWidth = marqueeTrackRef.current.scrollWidth / 2;
 
         if (setWidth > 0) {
@@ -167,7 +142,6 @@ export default function Team() {
             currentTranslateRef.current -= SPEED * delta;
           }
 
-          // Mathematical modulo wrap in range [-setWidth, 0)
           currentTranslateRef.current =
             ((currentTranslateRef.current % setWidth) - setWidth) % setWidth;
 
@@ -185,7 +159,6 @@ export default function Team() {
     };
   }, [marqueeItems.length]);
 
-  // Pointer drag events (mouse & touch)
   const handlePointerDown = (e) => {
     isDraggingRef.current = true;
     setIsInteracting(true);
@@ -217,8 +190,202 @@ export default function Team() {
     }, 1500);
   };
 
+  // Reusable Member Card Component
+  const renderCard = (member) => (
+    <div
+      key={member.id || member.slug}
+      onClick={() => setSelectedMember(member)}
+      className="team-member-card"
+      style={{
+        position: "relative",
+        background:
+          "linear-gradient(180deg, rgba(18, 22, 35, 0.78) 0%, rgba(9, 11, 19, 0.96) 100%)",
+        backdropFilter: "blur(20px)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
+        borderRadius: "14px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        boxShadow:
+          "0 14px 28px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
+        cursor: "pointer",
+        transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.borderColor = "rgba(168, 85, 247, 0.45)";
+        e.currentTarget.style.boxShadow =
+          "0 20px 35px -8px rgba(124, 58, 237, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
+        e.currentTarget.style.boxShadow =
+          "0 14px 28px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08)";
+      }}
+    >
+      <div
+        className="card-avatar-box"
+        style={{
+          position: "absolute",
+          left: "50%",
+          transform: "translateX(-50%)",
+          borderRadius: "5px",
+          padding: "2px",
+          background:
+            "linear-gradient(135deg, rgba(168, 85, 247, 0.8), rgba(59, 130, 246, 0.4))",
+          boxShadow:
+            "0 10px 24px rgba(0, 0, 0, 0.85), 0 0 15px rgba(168, 85, 247, 0.25)",
+        }}
+      >
+        <img
+          src={member.avatarImageUrl || FALLBACK_AVATAR}
+          alt={member.name}
+          style={{
+            width: "100%",
+            height: "100%",
+            borderRadius: "5px",
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      </div>
+
+      <h3
+        className="card-member-name"
+        style={{
+          fontWeight: 600,
+          color: "#f8fafc",
+          margin: "0 0 0.35rem 0",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {member.name}
+      </h3>
+
+      <p
+        className="card-member-role"
+        style={{
+          color: "#a78bfa",
+          margin: 0,
+          lineHeight: 1.35,
+          fontFamily: "monospace",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          fontWeight: 500,
+        }}
+      >
+        {member.designation || member.role || member.department}
+      </p>
+    </div>
+  );
+
   return (
     <div className="crew-page">
+      <style>{`
+        /* Full Viewport Centered Landing Section */
+        .hero-viewport-section {
+          height: calc(100vh - 80px);
+          min-height: 560px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 2rem 1.5rem 6.5rem 1.5rem;
+          position: relative;
+          box-sizing: border-box;
+        }
+
+        /* 4 COLUMNS ON DESKTOP & LAPTOPS — CENTERED */
+        .cards-responsive-layout {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, 260px);
+          justify-content: center;
+          justify-items: center;
+          gap: 4.5rem 2rem;
+          padding-top: 3.5rem;
+          padding-bottom: 2.5rem;
+        }
+
+        /* Default (Desktop / Laptop) */
+        .team-member-card {
+          width: 260px;
+          margin: 0 auto;
+          padding: 4.2rem 1.15rem 1.35rem 1.15rem; /* Increased top padding from 3.6rem to 4.2rem */
+          box-sizing: border-box;
+        }
+
+        .card-avatar-box {
+          width: 104px;       /* Increased from 84px */
+          height: 104px;      /* Increased from 84px */
+          top: -52px;         /* Exactly half height (-52px) for a clean float */
+          border-radius: 6px;
+        }
+
+        .card-avatar-box img {
+          border-radius: 6px;
+        }
+
+        .card-member-name {
+          font-size: 1.05rem;
+        }
+
+        .card-member-role {
+          font-size: 0.78rem;
+        }
+
+        @keyframes hairlineSlide {
+          0% { transform: translateY(-100%); }
+          50% { transform: translateY(100%); }
+          100% { transform: translateY(200%); }
+        }
+
+        /* Tablet Breakpoint (2 or 3 columns) */
+        @media (max-width: 1024px) {
+          .cards-responsive-layout {
+            grid-template-columns: repeat(2, minmax(0, 260px));
+            gap: 4rem 1.5rem;
+          }
+        }
+
+        /* EXACT SINGLE-COLUMN MOBILE RETENTION */
+        @media (max-width: 640px) {
+          .hero-viewport-section {
+            height: calc(100vh - 65px);
+            min-height: 500px;
+            padding: 0.5rem 1rem 5.5rem 1rem;
+          }
+
+          .cards-responsive-layout {
+            grid-template-columns: minmax(0, 240px) !important;
+            gap: 3.75rem !important;
+            padding-top: 3rem !important;
+            padding-bottom: 1.75rem !important;
+          }
+
+          .team-member-card {
+            width: 240px !important;
+            padding: 3.2rem 1rem 1.2rem 1rem !important;
+          }
+
+          .card-avatar-box {
+            width: 74px !important;
+            height: 74px !important;
+            top: -37px !important;
+          }
+
+          .card-member-name {
+            font-size: 1.02rem !important;
+          }
+
+          .card-member-role {
+            font-size: 0.76rem !important;
+          }
+        }
+      `}</style>
+
       <video
         className="site-galaxy-background"
         autoPlay
@@ -238,6 +405,7 @@ export default function Team() {
       >
         <source src="/static/assets/galaxy_small.mp4" type="video/mp4" />
       </video>
+
       <div
         className="site-galaxy-veil"
         style={{
@@ -247,8 +415,8 @@ export default function Team() {
           pointerEvents: "none",
         }}
         aria-hidden="true"
-      ></div>
-      <div className="noise"></div>
+      />
+      <div className="noise" />
 
       <Navbar />
 
@@ -262,38 +430,48 @@ export default function Team() {
         }}
       >
         {/* Full Viewport Landing Hero Header */}
-        <section
-          className="crew-hero"
-          style={{
-            height: "calc(100vh - 80px)",
-            minHeight: "560px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            padding: "0 1.5rem",
-            position: "relative",
-            boxSizing: "border-box",
-          }}
-        >
-          <div className="container" style={{ maxWidth: "1000px", margin: "0 auto", padding: "0 1rem" }}>
-            <p className="crew-kicker" style={{ marginBottom: "16px", textAlign: "center" }}>
+        <section className="hero-viewport-section">
+          <div
+            style={{
+              position: "relative",
+              zIndex: 1,
+              maxWidth: "800px",
+              margin: "9rem 0 auto 0",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <p
+              className="crew-kicker"
+              style={{
+                fontFamily: "monospace",
+                fontSize: "0.75rem",
+                letterSpacing: "0.22em",
+                color: "#c084fc",
+                textTransform: "uppercase",
+                marginBottom: "14px",
+                textAlign: "center",
+              }}
+            >
               04 / MEET MEMBERS
             </p>
+
             <h1
               style={{
                 textAlign: "center",
                 margin: "0 auto",
-                fontSize: "clamp(1.75rem, 4.6vw, 4.8rem)",
+                fontSize: "clamp(2.2rem, 6.2vw, 4.4rem)",
                 lineHeight: 1.1,
-                letterSpacing: "-0.035em",
+                letterSpacing: "-0.03em",
                 maxWidth: "100%",
+                textWrap: "balance",
+                wordBreak: "break-word",
+                color: "#ffffff",
+                fontWeight: 700,
               }}
             >
-              <span style={{ display: "block", whiteSpace: "nowrap" }}>
-                The Minds Behind the Craft
-              </span>
+              <span>The Minds Behind the Craft</span>
               <em
                 style={{
                   display: "block",
@@ -301,52 +479,55 @@ export default function Team() {
                   fontWeight: 400,
                   color: "#d8b4fe",
                   marginTop: "0.35rem",
-                  whiteSpace: "nowrap",
                 }}
               >
                 — Team Antariksh.
               </em>
             </h1>
+
             <p
               className="crew-intro"
               style={{
-                margin: "24px auto 0 auto",
+                margin: "18px auto 0 auto",
                 textAlign: "center",
-                maxWidth: "500px",
-                fontSize: "0.82rem",
-                fontWeight: 300,
+                maxWidth: "480px",
+                fontSize: "clamp(0.85rem, 2vw, 0.95rem)",
+                fontWeight: 400,
                 lineHeight: 1.6,
-                color: "#94a3b8",
-                letterSpacing: "0.02em",
+                color: "#a1a1aa",
+                letterSpacing: "0.01em",
               }}
             >
-              The astronomers, engineers, and researchers steering Antariksh forward into deep space exploration.
+              The astronomers, engineers, and researchers steering Antariksh
+              forward into deep space exploration.
             </p>
           </div>
 
-          {/* Minimalist Vertical Hairline Scroll Indicator */}
+          {/* Lifted Scroll Indicator */}
           <a
             href="#crew-manifest"
             aria-label="Scroll down to crew manifest"
             style={{
               position: "absolute",
-              bottom: "2rem",
+              bottom: "5.5rem",
               left: "50%",
               transform: "translateX(-50%)",
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.5rem",
+              gap: "0.4rem",
               textDecoration: "none",
               cursor: "pointer",
+              opacity: 0.75,
+              zIndex: 3,
             }}
           >
             <span
               style={{
                 fontFamily: "monospace",
-                fontSize: "0.6rem",
+                fontSize: "0.62rem",
                 letterSpacing: "0.25em",
-                color: "rgba(255, 255, 255, 0.4)",
+                color: "rgba(255, 255, 255, 0.65)",
                 textTransform: "uppercase",
               }}
             >
@@ -355,8 +536,9 @@ export default function Team() {
             <div
               style={{
                 width: "1px",
-                height: "40px",
-                background: "linear-gradient(to bottom, rgba(168, 85, 247, 0.6), rgba(255, 255, 255, 0.08))",
+                height: "34px",
+                background:
+                  "linear-gradient(to bottom, rgba(168, 85, 247, 0.8), rgba(255, 255, 255, 0.08))",
                 position: "relative",
                 overflow: "hidden",
                 borderRadius: "1px",
@@ -366,145 +548,282 @@ export default function Team() {
                 style={{
                   width: "100%",
                   height: "50%",
-                  background: "linear-gradient(to bottom, transparent, #c084fc, transparent)",
-                  animation: "hairlineSlide 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                  background:
+                    "linear-gradient(to bottom, transparent, #c084fc, transparent)",
+                  animation:
+                    "hairlineSlide 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
                 }}
               />
             </div>
           </a>
         </section>
 
-        {/* Core Crew Grid - 260px Card Width & 5rem Row Gap */}
-        <section id="crew-manifest" style={{ paddingTop: "2rem" }}>
-          <div
-            className="container"
-            style={{
-              maxWidth: "1240px",
-              margin: "0 auto",
-              padding: "0 1.5rem",
-            }}
-          >
-            {isLoading ? (
+        {/* Dropdown Sections Wrapper (Expanded to 1240px for 4 cols) */}
+        <section
+          id="crew-manifest"
+          style={{
+            maxWidth: "1240px",
+            margin: "0 auto",
+            padding: "2rem 1.5rem 0 1.5rem",
+          }}
+        >
+          {isLoading ? (
+            <div
+              style={{
+                padding: "6rem 0",
+                textAlign: "center",
+                fontFamily: "monospace",
+                color: "#a1a1aa",
+                letterSpacing: "0.1em",
+              }}
+            >
+              LOADING CREW DIRECTORY...
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "2.25rem",
+              }}
+            >
+              {/* 1. MENTOR DROPDOWN (4-COL ON DESKTOP, 1-COL ON MOBILE) */}
               <div
                 style={{
-                  padding: "6rem 0",
-                  textAlign: "center",
-                  fontFamily: "monospace",
-                  color: "#a1a1aa",
-                  letterSpacing: "0.1em",
+                  background: "rgba(13, 16, 26, 0.55)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(168, 85, 247, 0.2)",
+                  borderRadius: "14px",
+                  overflow: "hidden",
+                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.35)",
                 }}
               >
-                LOADING CREW DIRECTORY...
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  rowGap: "5rem",
-                  columnGap: "2rem",
-                  paddingTop: "1rem",
-                }}
-              >
-                {displayList.map((member) => (
+                <button
+                  onClick={() => setIsMentorsOpen(!isMentorsOpen)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "1.1rem 1.5rem",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    outline: "none",
+                    color: "#ffffff",
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.02)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
                   <div
-                    key={member.id || member.slug}
-                    onClick={() => setSelectedMember(member)}
                     style={{
-                      position: "relative",
-                      width: "260px",
-                      flex: "0 1 260px",
-                      background:
-                        "linear-gradient(180deg, rgba(18, 22, 35, 0.78) 0%, rgba(9, 11, 19, 0.96) 100%)",
-                      backdropFilter: "blur(20px)",
-                      border: "1px solid rgba(255, 255, 255, 0.08)",
-                      borderRadius: "14px",
-                      padding: "3.8rem 1.25rem 1.25rem 1.25rem",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
-                      textAlign: "center",
-                      boxShadow:
-                        "0 14px 28px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08)",
-                      cursor: "pointer",
-                      transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor =
-                        "rgba(168, 85, 247, 0.45)";
-                      }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(255, 255, 255, 0.08)";
-                      e.currentTarget.style.boxShadow =
-                        "0 14px 28px -10px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08)";
+                      gap: "0.75rem",
                     }}
                   >
-                    {/* Avatar Frame: 88px with 5px radius */}
-                    <div
+                    <span
                       style={{
-                        position: "absolute",
-                        top: "-44px",
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        width: "88px",
-                        height: "88px",
-                        borderRadius: "5px",
-                        padding: "2px",
-                        background:
-                          "linear-gradient(135deg, rgba(168, 85, 247, 0.8), rgba(59, 130, 246, 0.4))",
-                        boxShadow:
-                          "0 10px 24px rgba(0, 0, 0, 0.85), 0 0 15px rgba(168, 85, 247, 0.25)",
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: "#a855f7",
+                        boxShadow: "0 0 8px #a855f7",
                       }}
-                    >
-                      <img
-                        src={member.avatarImageUrl || FALLBACK_AVATAR}
-                        alt={member.name}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          borderRadius: "5px",
-                          objectFit: "cover",
-                          display: "block",
-                        }}
-                      />
-                    </div>
-
-                    {/* Member Name */}
-                    <h3
+                    />
+                    <span
                       style={{
-                        fontSize: "1.12rem",
-                        fontWeight: 600,
-                        color: "#f8fafc",
-                        margin: "0 0 0.25rem 0",
-                        letterSpacing: "-0.01em",
-                      }}
-                    >
-                      {member.name}
-                    </h3>
-
-                    {/* Designation Only */}
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "#a78bfa",
-                        margin: 0,
-                        lineHeight: 1.35,
                         fontFamily: "monospace",
-                        letterSpacing: "0.04em",
+                        fontSize: "0.82rem",
+                        letterSpacing: "0.22em",
+                        color: "#e2e8f0",
+                        fontWeight: 600,
                         textTransform: "uppercase",
-                        fontWeight: 500,
                       }}
                     >
-                      {member.designation || member.role || member.department}
-                    </p>
+                      MENTORS
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontFamily: "monospace",
+                        color: "#94a3b8",
+                        background: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                        padding: "1px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {mentors.length}
+                    </span>
                   </div>
-                ))}
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: isMentorsOpen
+                        ? "rgba(168, 85, 247, 0.15)"
+                        : "rgba(255, 255, 255, 0.03)",
+                      border: `1px solid ${isMentorsOpen ? "rgba(168, 85, 247, 0.35)" : "rgba(255, 255, 255, 0.08)"}`,
+                      color: isMentorsOpen ? "#d8b4fe" : "#94a3b8",
+                      transform: isMentorsOpen
+                        ? "rotate(180deg)"
+                        : "rotate(0deg)",
+                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
+
+                {isMentorsOpen && (
+                  <div style={{ padding: "0 1.5rem 0.5rem 1.5rem" }}>
+                    <div className="cards-responsive-layout">
+                      {mentors.map(renderCard)}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+
+              {/* 2. CORE TEAM DROPDOWN (4-COL ON DESKTOP, 1-COL ON MOBILE) */}
+              <div
+                style={{
+                  background: "rgba(13, 16, 26, 0.55)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(168, 85, 247, 0.2)",
+                  borderRadius: "14px",
+                  overflow: "hidden",
+                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.35)",
+                }}
+              >
+                <button
+                  onClick={() => setIsCoreOpen(!isCoreOpen)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "1.1rem 1.5rem",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    outline: "none",
+                    color: "#ffffff",
+                    transition: "background 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background =
+                      "rgba(255, 255, 255, 0.02)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: "#a855f7",
+                        boxShadow: "0 0 8px #a855f7",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: "0.82rem",
+                        letterSpacing: "0.22em",
+                        color: "#e2e8f0",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      CORE TEAM
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontFamily: "monospace",
+                        color: "#94a3b8",
+                        background: "rgba(255, 255, 255, 0.04)",
+                        border: "1px solid rgba(255, 255, 255, 0.06)",
+                        padding: "1px 6px",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      {coreTeamList.length}
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: isCoreOpen
+                        ? "rgba(168, 85, 247, 0.15)"
+                        : "rgba(255, 255, 255, 0.03)",
+                      border: `1px solid ${isCoreOpen ? "rgba(168, 85, 247, 0.35)" : "rgba(255, 255, 255, 0.08)"}`,
+                      color: isCoreOpen ? "#d8b4fe" : "#94a3b8",
+                      transform: isCoreOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </span>
+                </button>
+
+                {isCoreOpen && (
+                  <div style={{ padding: "0 1.5rem 0.5rem 1.5rem" }}>
+                    <div className="cards-responsive-layout">
+                      {coreTeamList.map(renderCard)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Hanging Infinite Volunteers Marquee */}
@@ -512,7 +831,7 @@ export default function Team() {
           <section
             style={{
               position: "relative",
-              marginTop: "6rem",
+              marginTop: "6.5rem",
               overflow: "hidden",
             }}
           >
@@ -579,7 +898,6 @@ export default function Team() {
               onTouchMove={handlePointerMove}
               onTouchEnd={handlePointerUp}
             >
-              {/* Curved Cable Wire SVG (BEHIND CARDS: zIndex: 0) */}
               <div
                 style={{
                   position: "absolute",
@@ -607,7 +925,6 @@ export default function Team() {
                 </svg>
               </div>
 
-              {/* Edge Gradient Masks */}
               <div
                 style={{
                   position: "absolute",
@@ -631,7 +948,6 @@ export default function Team() {
                 }}
               />
 
-              {/* Continuous Ribbon driven by JS */}
               <div
                 ref={marqueeTrackRef}
                 style={{
@@ -673,7 +989,6 @@ export default function Team() {
                         e.currentTarget.style.zIndex = "2";
                       }}
                     >
-                      {/* Green Pin Clip */}
                       <div
                         style={{
                           position: "absolute",
@@ -702,7 +1017,6 @@ export default function Team() {
                         />
                       </div>
 
-                      {/* Polaroid Card */}
                       <div
                         style={{
                           background: "rgba(255, 255, 255, 0.95)",
@@ -778,30 +1092,15 @@ export default function Team() {
 
       <Footer />
 
-      {/* Member Details Modal */}
+      {/* Responsive Member Details Modal */}
       {selectedMember && (
         <div
           className="crew-modal-backdrop"
           onClick={() => setSelectedMember(null)}
         >
           <div
-            className="crew-modal-card"
+            className="crew-modal-card-responsive"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "rgba(11, 13, 21, 0.95)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              borderRadius: "16px",
-              boxShadow: "0 25px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(168, 85, 247, 0.12)",
-              width: "100%",
-              maxWidth: "620px",
-              padding: "1.75rem",
-              position: "relative",
-              display: "flex",
-              flexDirection: "row",
-              gap: "1.5rem",
-              alignItems: "stretch",
-            }}
           >
             <button
               className="crew-modal-close"
@@ -817,19 +1116,7 @@ export default function Team() {
               ×
             </button>
 
-            {/* Left Column: 40% Square Image */}
-            <div
-              style={{
-                width: "40%",
-                flexShrink: 0,
-                aspectRatio: "1 / 1",
-                borderRadius: "12px",
-                overflow: "hidden",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.6), 0 0 15px rgba(168, 85, 247, 0.2)",
-                background: "#080a12",
-              }}
-            >
+            <div className="crew-modal-left-image">
               <img
                 src={selectedMember.avatarImageUrl || FALLBACK_AVATAR}
                 alt={selectedMember.name}
@@ -842,17 +1129,7 @@ export default function Team() {
               />
             </div>
 
-            {/* Right Column: 60% Details */}
-            <div
-              style={{
-                width: "60%",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                minWidth: 0,
-                paddingRight: "0.5rem",
-              }}
-            >
+            <div className="crew-modal-right-info">
               <div style={{ marginBottom: "0.35rem" }}>
                 <span
                   style={{
@@ -885,13 +1162,19 @@ export default function Team() {
                 {selectedMember.name}
               </h2>
 
-              <p style={{ color: "#94a3b8", fontSize: "0.82rem", margin: 0, fontFamily: "monospace" }}>
+              <p
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "0.82rem",
+                  margin: 0,
+                  fontFamily: "monospace",
+                }}
+              >
                 {[selectedMember.department, selectedMember.academicYear]
                   .filter(Boolean)
                   .join(" • ")}
               </p>
 
-              {/* Multiple Domains without curly brackets */}
               {parseDomains(selectedMember).length > 0 && (
                 <div
                   style={{
