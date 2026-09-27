@@ -442,3 +442,21 @@
     color: var(--acid, #d481ff);
     font-style: normal;
 }
+
+/* Minimalist Vertical Hairline Scroll Animation */
+@keyframes hairlineSlide {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(200%);
+        opacity: 0;
+    }
+}
